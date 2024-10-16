@@ -1,10 +1,12 @@
-from fnmatch import fnmatch
-import shutil
 from urllib.request import urlretrieve
 import smartsheet.models
 import logging
 import os
-from consts import sheet_id, bank_route, temp_route
+from consts import temp_route
+
+sheet_id = 12341  # replace with your sheet id
+
+os.makedirs(temp_route, exist_ok=True)
 
 
 class Attachment:
@@ -33,7 +35,7 @@ def get_cell_by_column_name(
     return row.get_column(column_id)
 
 
-smart = smartsheet.Smartsheet()
+smart = smartsheet.Smartsheet("API_KEY")
 # Make sure we don't miss any error
 smart.errors_as_exceptions(True)
 
@@ -52,39 +54,18 @@ for column in sheet.columns:
 
 rows: list[smartsheet.models.row.Row] = sheet.rows
 files: list[Attachment] = []
-receipt_pdf_files = [file for file in os.listdir(bank_route) if file.endswith(".pdf")]
 
 
 for row in rows:
-    # print(row)
-    op_number = get_cell_by_column_name(row, "OP elsz.sorszám").display_value
+    op_number = get_cell_by_column_name(row, "Sorszám").display_value
     ready_state = get_cell_by_column_name(row, "Ready")
-    primary = get_cell_by_column_name(row, "Primary Column")
-    receipt_number = get_cell_by_column_name(row, "Kifizetés bizonylata").display_value
 
     if ready_state.value != "Green":
         continue
 
-    if receipt_number is not None and not receipt_number.startswith("P"):
-        final_receipt_filename = f"{op_number}_b_{receipt_number}.pdf"
-        found = False
-
-        for receipt_file in receipt_pdf_files:
-            if fnmatch(receipt_file, f"{receipt_number}_*.pdf"):
-                # shutil.copy(f'{bank_route}/{receipt_file}', f'{temp_route}/{final_receipt_filename}')
-                shutil.copy(
-                    os.path.join(cwd, bank_route, receipt_file),
-                    os.path.join(cwd, temp_route, final_receipt_filename),
-                )
-                found = True
-                break
-
-        print(f'Receipt "{receipt_number}" not found for OP {op_number}')
-
     for att in row.attachments:
         final_name = f"{op_number}__{att.name}"
         files.append(Attachment(final_name, att.name, att, download_url=None))
-
 
 
 for file in files:
